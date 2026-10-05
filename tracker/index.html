@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tracker</title>
+<style>
+  :root {
+    --bg: #000000;
+    --card: #0f0f11;
+    --ink: #f1f1ee;
+    --soft: #8b8b86;
+    --muted: #56564f;
+    --hair: #222225;
+    --gauge-bg: #232327;
+    --accent: #39ff14;
+    --partial: #ffb86c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--ink); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    font-feature-settings: "tnum", "ss01";
+    line-height: 1.5;
+    padding: 56px 24px 80px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 36px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--hair);
+  }
+  header h1 {
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+  header .updated {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .summary {
+    background: var(--card);
+    border: 1px solid var(--hair);
+    border-radius: 12px;
+    padding: 18px 22px 20px;
+    margin-bottom: 26px;
+  }
+  .summary .lbl { font-size: 11px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+  .summary .head { display: flex; align-items: baseline; gap: 9px; margin-top: 7px; }
+  .summary .big { font-size: 40px; font-weight: 600; color: var(--accent); letter-spacing: -0.015em; line-height: 1; }
+  .summary .den { font-size: 16px; color: var(--soft); }
+  .summary .raw { margin-left: auto; font-size: 11px; color: var(--muted); text-align: right; line-height: 1.45; letter-spacing: 0.03em; }
+  .summary .bar { height: 5px; background: var(--gauge-bg); border-radius: 3px; margin-top: 13px; overflow: hidden; }
+  .summary .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+  .summary .marks { display: flex; gap: 8px; margin-top: 16px; }
+  .summary .mark { flex: 1; background: #0a0a0c; border: 1px solid var(--hair); border-radius: 8px; padding: 9px 4px; text-align: center; }
+  .summary .mark .mv { font-size: 17px; font-weight: 600; }
+  .summary .mark .mv .u { font-size: 10px; color: var(--muted); font-weight: 500; }
+  .summary .mark .mk { font-size: 9px; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; margin-top: 3px; }
+  .summary .mark.warn .mv { color: var(--partial); }
+  .cumchart {
+    background: var(--card);
+    border: 1px solid var(--hair);
+    border-radius: 12px;
+    padding: 16px 18px 8px;
+    margin-bottom: 26px;
+  }
+  .cumchart .cc-lbl { font-size: 11px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+  .cumchart svg { width: 100%; height: auto; display: block; }
+  .cc-era { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; }
+  .cc-ax { font-size: 9px; fill: var(--muted); }
+  .cc-total { font-size: 12px; font-weight: 700; fill: var(--ink); }
+  .hm-mo, .hm-dow { font-size: 9px; fill: var(--muted); }
+  /* $EFFORT ticker — live terminal */
+  #tickerchart { padding: 22px 24px 24px; margin-bottom: 20px; background: linear-gradient(180deg,#0b0b0e 0%,#0f0f11 70%); }
+  .tk-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+  .tk-sym { font-size: 16px; font-weight: 700; letter-spacing: 0.09em; color: var(--ink); display: flex; align-items: center; gap: 10px; }
+  .tk-pulse { position: relative; width: 7px; height: 7px; }
+  .tk-pulse::before, .tk-pulse::after { content: ""; position: absolute; inset: 0; border-radius: 50%; }
+  .tk-pulse::before { background: var(--c); }
+  .tk-pulse::after { border: 1px solid var(--c); animation: tkping 1.8s ease-out infinite; }
+  .tk-quote { display: flex; align-items: baseline; gap: 11px; }
+  .tk-price { font-size: 34px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; transition: color .4s; }
+  .tk-price.tk-up { color: #34e37e; text-shadow: 0 0 16px rgba(52,227,126,.45); }
+  .tk-price.tk-hi { color: #e3b341; text-shadow: 0 0 18px rgba(227,179,65,.6); }
+  .tk-unit { font-size: 15px; color: var(--muted); font-weight: 500; margin-left: 1px; }
+  .tk-chg { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+  .tk-chart { position: relative; margin-top: 18px; }
+  .tk-chart svg { display: block; width: 100%; height: 172px; }
+  .tk-live { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; pointer-events: none; animation: tkin .4s ease 1.6s both; }
+  .tk-live::before, .tk-live::after { content: ""; position: absolute; inset: 0; border-radius: 50%; }
+  .tk-live::before { background: var(--c); box-shadow: 0 0 9px var(--c); }
+  .tk-live::after { border: 1px solid var(--c); animation: tkping2 2s ease-out infinite; }
+  .tk-ath { position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; transform: rotate(45deg); border: 1px solid #dfe7ee; opacity: .5; pointer-events: none; animation: tkin .4s ease 1.2s both; }
+  .tk-xlab { position: absolute; bottom: 0; transform: translateX(-1px); font-size: 9px; letter-spacing: 0.05em; color: var(--muted); pointer-events: none; }
+  @keyframes tkin { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes tkping { 0% { transform: scale(1); opacity: .7; } 70% { transform: scale(3); opacity: 0; } 100% { opacity: 0; } }
+  @keyframes tkping2 { 0% { transform: scale(1); opacity: .6; } 70% { transform: scale(3.4); opacity: 0; } 100% { opacity: 0; } }
+  .cumchart .hm-legend { display: flex; align-items: center; gap: 4px; justify-content: flex-end; font-size: 9px; color: var(--muted); letter-spacing: 0.04em; margin-top: 6px; }
+  .cumchart .hm-legend i { width: 11px; height: 11px; border-radius: 2.5px; display: inline-block; }
+  .days { display: flex; flex-direction: column; gap: 14px; }
+  .day {
+    background: var(--card);
+    border: 1px solid var(--hair);
+    border-radius: 12px;
+    padding: 18px 22px 22px;
+  }
+  .section-divider {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 18px 4px 6px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .section-divider .line {
+    flex: 1;
+    height: 1px;
+    background: var(--hair);
+  }
+  .section-divider .label {
+    color: var(--ink);
+    letter-spacing: 0.22em;
+  }
+  .day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--soft);
+    margin-bottom: 4px;
+  }
+  .day-header .partial {
+    color: var(--partial);
+    font-style: italic;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    font-size: 11px;
+  }
+  .gauges {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .gauges.detail {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    margin-top: 10px;
+  }
+  .gauges.detail .gauge svg { max-width: 140px; }
+  .gauges.detail .gauge-pct { font-size: 19px; }
+  .gauges.detail .gauge-pct-sign { font-size: 10px; }
+  .gauges.detail .gauge-raw { font-size: 8.5px; }
+  .gauges.detail .gauge-na { font-size: 16px; }
+  .gauges.detail .gauge-over { font-size: 8px; }
+  .gauges.detail .gauge-label { font-size: 10px; letter-spacing: 0.13em; }
+  .gauges.detail .gauge-stars { font-size: 11px; letter-spacing: 0.14em; }
+  @media (max-width: 420px) {
+    .gauges { grid-template-columns: 1fr; gap: 14px; }
+    .gauges.detail { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  }
+  .gauge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 6px;
+  }
+  .gauge svg { width: 100%; max-width: 220px; height: auto; display: block; }
+  .gauge-label {
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-top: -2px;
+  }
+  .arc-bg { stroke: var(--gauge-bg); stroke-width: 10; fill: none; stroke-linecap: round; }
+  .arc-fill {
+    stroke: var(--accent);
+    stroke-width: 10;
+    fill: none;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 3px rgba(57, 255, 20, 0.55)) drop-shadow(0 0 8px rgba(57, 255, 20, 0.25));
+    transition: stroke-dashoffset 1s cubic-bezier(.2,.7,.2,1);
+  }
+  .tick { stroke: var(--muted); stroke-width: 1; opacity: 0.35; }
+  .gauge-pct { font-size: 26px; font-weight: 500; fill: var(--ink); letter-spacing: -0.02em; }
+  .gauge-pct-sign { font-size: 12px; fill: var(--muted); font-weight: 400; }
+  .gauge-raw { font-size: 9.5px; fill: var(--muted); letter-spacing: 0.04em; }
+  .gauge-na { font-size: 22px; fill: var(--muted); font-weight: 300; }
+  .gauge-stars {
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 0.18em;
+    margin-top: 2px;
+    text-shadow: 0 0 4px rgba(57, 255, 20, 0.45);
+  }
+  .gauge-stars .empty { color: var(--muted); text-shadow: none; }
+  .gauge-over { fill: var(--partial); font-size: 9.5px; letter-spacing: 0.04em; }
+
+  footer {
+    margin-top: 48px;
+    padding-top: 22px;
+    border-top: 1px solid var(--hair);
+    font-size: 11.5px;
+    color: var(--soft);
+    line-height: 1.7;
+  }
+  footer dl {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    gap: 2px 14px;
+    margin-bottom: 18px;
+  }
+  footer dt {
+    color: var(--ink);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 10.5px;
+    align-self: center;
+  }
+  footer dd { color: var(--soft); }
+  footer .credit {
+    color: var(--muted);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 420px) {
+    .gauges { grid-template-columns: 1fr; gap: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>tracker</h1>
+  <div style="display:flex;gap:14px;align-items:baseline;">
+    <div class="updated" id="updated"></div>
+  </div>
+</header>
+
+<div class="cumchart" id="tickerchart"></div>
+<div class="cumchart" id="cumchart"></div>
+
+<div class="days" id="days"></div>
+
+<footer>
+  <dl>
+    <dt>Mobilization</dt><dd>work hours / awake hours</dd>
+    <dt>Efficiency</dt><dd>score-weighted work hours / work hours</dd>
+  </dl>
+  <div class="credit">agent-maintained tracker</div>
+</footer>
+
+<script>
+  const ARC_RADIUS = 80;
+  const ARC_LEN = Math.PI * ARC_RADIUS;
+  const ARC_PATH = `M 20 110 A ${ARC_RADIUS} ${ARC_RADIUS} 0 0 1 180 110`;
+
+  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  function fmtDate(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    return `${DAY_NAMES[dt.getDay()]} ${m}/${d}`;
+  }
+
+  function fmtHr(h) {
+    if (h == null) return '—';
+    const s = h.toFixed(1);
+    return s.endsWith('.0') ? s.slice(0, -2) : s;
+  }
+
+  function tickAt(pct) {
+    // angle: 180° at pct=0, 0° at pct=1
+    const angle = Math.PI * (1 - pct);
+    const cx = 100, cy = 110, r1 = ARC_RADIUS - 9, r2 = ARC_RADIUS + 9;
+    const x1 = cx + r1 * Math.cos(angle);
+    const y1 = cy - r1 * Math.sin(angle);
+    const x2 = cx + r2 * Math.cos(angle);
+    const y2 = cy - r2 * Math.sin(angle);
+    return `<line x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}" class="tick"/>`;
+  }
+
+  function gaugeSVG(value, rawLine) {
+    const has = value != null;
+    const trueValue = has ? value : 0;
+    const overshot = trueValue > 1;
+    const pct = has ? Math.max(0, Math.min(1, value)) : 0;
+    const dashoffsetFinal = ARC_LEN * (1 - pct);
+
+    let centerText;
+    if (!has) {
+      centerText = `<text x="100" y="92" text-anchor="middle" class="gauge-na">—</text>`;
+    } else if (overshot) {
+      centerText = `<text x="100" y="86" text-anchor="middle" class="gauge-pct">${Math.round(trueValue * 100)}<tspan class="gauge-over" dx="1">% ↑</tspan></text>`;
+    } else {
+      centerText = `<text x="100" y="86" text-anchor="middle" class="gauge-pct">${Math.round(pct * 100)}<tspan class="gauge-pct-sign" dx="1">%</tspan></text>`;
+    }
+
+    const rawText = rawLine
+      ? `<text x="100" y="105" text-anchor="middle" class="gauge-raw">${rawLine}</text>`
+      : '';
+
+    return `
+      <svg viewBox="0 0 200 120" aria-hidden="true">
+        <path d="${ARC_PATH}" class="arc-bg"/>
+        ${tickAt(0.5)}
+        <path d="${ARC_PATH}" class="arc-fill"
+          stroke-dasharray="${ARC_LEN.toFixed(2)}"
+          stroke-dashoffset="${ARC_LEN.toFixed(2)}"
+          data-target="${dashoffsetFinal.toFixed(2)}"/>
+        ${centerText}
+        ${rawText}
+      </svg>`;
+  }
+
+  function starsHTML(n) {
+    const filled = Math.max(0, Math.min(5, Math.round(n || 0)));
+    const empty = 5 - filled;
+    return '★'.repeat(filled) + `<span class="empty">${'☆'.repeat(empty)}</span>`;
+  }
+
+  const MONTHS = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  function sectionFor(dateStr) {
+    // Group day cards under a month divider. (If you want named "eras" instead
+    // — phases of your life/work — return your own label by date range here.)
+    const [y, m] = dateStr.split('-').map(Number);
+    return `${MONTHS[m - 1]} ${y}`;
+  }
+
+  function makeDivider(label) {
+    const div = document.createElement('div');
+    div.className = 'section-divider';
+    div.innerHTML = `<span class="line"></span><span class="label">${label}</span><span class="line"></span>`;
+    return div;
+  }
+
+  function renderSummary(s) {
+    const el = document.getElementById('summary');
+    if (!s) { el.style.display = 'none'; return; }
+    const n = s.window_days || 7;
+    const wAvgNum = s.weighted_7d / n;                       // avg weighted hrs/day
+    const pct = Math.min(100, 100 * wAvgNum / s.weighted_target);  // vs per-day target
+    const wAvg = wAvgNum.toFixed(1);
+    const tAvg = s.weighted_target.toFixed(1);               // per-day target (8)
+    const rAvg = (s.raw_7d / n).toFixed(1);
+    const gym = s.days_since_gym;
+    const gymTxt = (gym == null) ? '—' : (gym === 0 ? 'today' : gym + 'd');
+    const gymWarn = (gym == null || gym >= 2) ? ' warn' : '';
+    const protWarn = (s.protein_avg != null && s.protein_avg < s.protein_target) ? ' warn' : '';
+    el.innerHTML = `
+      <div class="lbl">last week · avg weighted work / day</div>
+      <div class="head">
+        <span class="big">${wAvg}</span>
+        <span class="den">/ ${tAvg} hrs</span>
+        <span class="raw">${rAvg}h raw avg<br>${Math.round(pct)}% of bar</span>
+      </div>
+      <div class="bar"><span style="width:${pct}%"></span></div>
+      <div class="marks">
+        <div class="mark${gymWarn}"><div class="mv">${gymTxt}</div><div class="mk">since gym</div></div>
+        <div class="mark"><div class="mv">${s.sleep_avg ?? '—'}<span class="u">h</span></div><div class="mk">sleep avg</div></div>
+        <div class="mark${protWarn}"><div class="mv">${s.protein_avg ?? '—'}<span class="u">g</span></div><div class="mk">protein avg</div></div>
+        <div class="mark"><div class="mv">${s.cal_avg ?? '—'}</div><div class="mk">cal avg</div></div>
+      </div>`;
+  }
+
+
+  function renderHeatmap(days) {
+    const el = document.getElementById('cumchart');
+    if (!days || !days.length) { if (el) el.style.display = 'none'; return; }
+    const sorted = [...days].sort((a, b) => a.date < b.date ? -1 : 1);
+    const byDate = {}; sorted.forEach(d => byDate[d.date] = d);
+    const first = new Date(sorted[0].date + 'T00:00:00');
+    const last = new Date(sorted[sorted.length - 1].date + 'T00:00:00');
+    const gridStart = new Date(first); gridStart.setDate(gridStart.getDate() - ((first.getDay() + 6) % 7)); // Monday-start weeks
+    const cell = 13, gap = 3, step = cell + gap, leftM = 26, topM = 18;
+    const cols = Math.floor(Math.round((last - gridStart) / 86400000) / 7) + 1;
+    const W = leftM + cols * step + 2, H = topM + 7 * step + 2;
+    const fmt = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    const RAMP = ['rgba(57,255,20,0.20)', 'rgba(57,255,20,0.40)', 'rgba(57,255,20,0.64)', 'rgba(57,255,20,0.95)'];
+    const lvl = eff => eff <= 0 ? -1 : eff < 4 ? 0 : eff < 7 ? 1 : eff < 10 ? 2 : 3;
+    const color = (eff, has) => !has ? '#141417' : (lvl(eff) < 0 ? '#1c1c20' : RAMP[lvl(eff)]);
+    // "move": binary yes/no — white if he trained (gym) that day, dark if not.
+    const MOVE_YES = '#f2f2f4', MOVE_NO = '#1c1c20';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    // Build one Monday-start grid from a per-day cell function: cell(d, has, ds) -> {fill, tip}
+    function buildGrid(cellFn) {
+      let svg = '', lastMonth = -1;
+      for (let c = 0; c < cols; c++) {
+        const cd = new Date(gridStart); cd.setDate(cd.getDate() + c * 7);
+        if (cd.getMonth() !== lastMonth) { lastMonth = cd.getMonth(); svg += `<text x="${leftM + c * step}" y="${topM - 6}" class="hm-mo">${months[cd.getMonth()]}</text>`; }
+      }
+      ['Mon', 'Wed', 'Fri'].forEach((lbl, i) => { const row = i * 2; svg += `<text x="${leftM - 5}" y="${topM + row * step + cell - 3}" text-anchor="end" class="hm-dow">${lbl}</text>`; });
+      for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < 7; r++) {
+          const dt = new Date(gridStart); dt.setDate(dt.getDate() + c * 7 + r);
+          if (dt < first || dt > last) continue;
+          const ds = fmt(dt), d = byDate[ds], has = !!d;
+          const { fill, tip } = cellFn(d, has, ds);
+          svg += `<rect x="${leftM + c * step}" y="${topM + r * step}" width="${cell}" height="${cell}" rx="2.5" fill="${fill}"><title>${tip}</title></rect>`;
+        }
+      }
+      return `<svg viewBox="0 0 ${W} ${H}" style="width:${W}px;max-width:100%;height:auto">${svg}</svg>`;
+    }
+
+    const workSVG = buildGrid((d, has, ds) => {
+      const eff = has ? (d.weighted_hrs || 0) : 0, real = has ? (d.work_hrs || 0) : 0;
+      return { fill: color(eff, has), tip: has ? `${ds}: ${real.toFixed(1)}h real · ${eff.toFixed(1)}h effective` : `${ds}: no data` };
+    });
+    const workLegend = `<div class="hm-legend">less <i style="background:#1c1c20"></i><i style="background:${RAMP[0]}"></i><i style="background:${RAMP[1]}"></i><i style="background:${RAMP[2]}"></i><i style="background:${RAMP[3]}"></i> more</div>`;
+
+    const moveSVG = buildGrid((d, has, ds) => {
+      const moved = has && (d.gym_minutes || 0) > 0;
+      if (!has) return { fill: '#141417', tip: `${ds}: no data` };
+      return { fill: moved ? MOVE_YES : MOVE_NO, tip: `${ds}: ${moved ? 'moved (' + Math.round(d.gym_minutes) + ' min)' : 'no move'}` };
+    });
+    const moveLegend = `<div class="hm-legend">no <i style="background:${MOVE_NO}"></i><i style="background:${MOVE_YES}"></i> yes</div>`;
+
+    // $EFFORT — the single stock you're the sole trader of. 7-day running avg of effective hrs,
+    // as a live terminal: glowing spline, an all-time-high ceiling to reclaim, a 6.0 target zone
+    // to break into, a pulsing live price, and a draw-in on load. Green up / muted-rose down.
+    function buildTrend(rows) {
+      const n = rows.length;
+      if (n < 2) return { header: '', chart: '' };
+      const WIN = 7, TARGET = 6.0;
+      const avgAt = i => {
+        let sum = 0, cnt = 0;
+        for (let j = Math.max(0, i - WIN + 1); j <= i; j++) { sum += rows[j].weighted_hrs || 0; cnt++; }
+        return sum / cnt;
+      };
+      const smooth = rows.map((_, i) => avgAt(i));
+      const cur = smooth[n - 1], prev = smooth[Math.max(0, n - 1 - WIN)];
+      const delta = cur - prev, up = delta >= 0;
+      let ath = -1, athIdx = 0;
+      smooth.forEach((v, i) => { if (v > ath) { ath = v; athIdx = i; } });
+      const newHigh = cur >= ath - 0.03, aboveTarget = cur >= TARGET;
+      const stroke = up ? '#34e37e' : '#ff6b78';
+      const glowStd = up ? 2.6 : 1.8;
+
+      const VW = 340, VH = 172, padT = 14, padB = 14, padL = 4, padR = 4;
+      const innerH = VH - padT - padB, plotW = VW - padL - padR;
+      const topV = Math.max(ath, TARGET) * 1.14;   // headroom above the ceiling
+      const maxY = Math.max(topV, 7);
+      const X = i => padL + (i / (n - 1)) * plotW;
+      const Y = v => padT + innerH * (1 - Math.min(v, maxY) / maxY);
+      const P = smooth.map((v, i) => [X(i), Y(v)]);
+      let path = `M${P[0][0].toFixed(1)} ${P[0][1].toFixed(1)} `;
+      for (let i = 0; i < n - 1; i++) {
+        const p0 = P[i === 0 ? 0 : i - 1], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2 < n ? i + 2 : n - 1];
+        const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+        const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+        path += `C${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)} `;
+      }
+      const baseY = padT + innerH;
+      const areaPath = path + `L${(padL + plotW).toFixed(1)} ${baseY.toFixed(1)} L${padL.toFixed(1)} ${baseY.toFixed(1)} Z`;
+
+      // month labels along the x-axis (crisp HTML overlay, not stretched SVG text)
+      let xlabs = '', prevM = -1;
+      rows.forEach((d, i) => {
+        const m = (+d.date.slice(5, 7)) - 1;
+        if (m !== prevM) { prevM = m; xlabs += `<span class="tk-xlab" style="left:${(X(i) / VW * 100).toFixed(2)}%">${months[m]}</span>`; }
+      });
+
+      const yTarget = Y(TARGET), yTop = padT, yAth = Y(ath);
+      const targetZone = `<rect x="${padL}" y="${yTop.toFixed(1)}" width="${plotW}" height="${(yTarget - yTop).toFixed(1)}" fill="url(#tkgold)"/>`;
+      const targetLine = `<line x1="${padL}" y1="${yTarget.toFixed(1)}" x2="${padL + plotW}" y2="${yTarget.toFixed(1)}" stroke="#e3b341" stroke-opacity="0.55" stroke-width="1" stroke-dasharray="1 5" vector-effect="non-scaling-stroke"/>`;
+      const athLine = `<line x1="${padL}" y1="${yAth.toFixed(1)}" x2="${padL + plotW}" y2="${yAth.toFixed(1)}" stroke="#dfe7ee" stroke-opacity="0.28" stroke-width="1" stroke-dasharray="1 5" vector-effect="non-scaling-stroke"/>`;
+
+      const svg =
+        `<svg viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="none">` +
+        `<defs>` +
+          `<linearGradient id="tkgrad" x1="0" y1="0" x2="0" y2="1">` +
+            `<stop offset="0" stop-color="${stroke}" stop-opacity="0.32"/>` +
+            `<stop offset="1" stop-color="${stroke}" stop-opacity="0"/></linearGradient>` +
+          `<linearGradient id="tkgold" x1="0" y1="0" x2="0" y2="1">` +
+            `<stop offset="0" stop-color="#e3b341" stop-opacity="0.09"/>` +
+            `<stop offset="1" stop-color="#e3b341" stop-opacity="0"/></linearGradient>` +
+          `<filter id="tkglow" x="-10%" y="-40%" width="120%" height="180%">` +
+            `<feGaussianBlur stdDeviation="${glowStd}" result="b"/>` +
+            `<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>` +
+          // left→right sweep reveal (always completes to the full width)
+          `<clipPath id="tksweep"><rect x="0" y="0" height="${VH}" width="0">` +
+            `<animate attributeName="width" values="0;${VW}" dur="1.6s" begin="0.2s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.22 0.61 0.36 1"/>` +
+          `</rect></clipPath>` +
+        `</defs>` +
+        targetZone + targetLine + athLine +
+        `<g clip-path="url(#tksweep)">` +
+          `<path d="${areaPath}" fill="url(#tkgrad)"/>` +
+          `<path d="${path}" fill="none" stroke="${stroke}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" filter="url(#tkglow)"/>` +
+        `</g>` +
+        `</svg>`;
+
+      // round overlay markers (kept crisp — SVG is stretched, HTML dots aren't)
+      const pctX = x => (x / VW * 100).toFixed(2);
+      const live = `<span class="tk-live" style="left:${pctX(P[n - 1][0])}%;top:${P[n - 1][1].toFixed(1)}px;--c:${stroke}"></span>`;
+      const athMark = `<span class="tk-ath" style="left:${pctX(P[athIdx][0])}%;top:${P[athIdx][1].toFixed(1)}px"></span>`;
+      const chart = `<div class="tk-chart">${svg}${xlabs}${athMark}${live}</div>`;
+
+      const arrow = up ? '▲' : '▼';
+      const pct = prev > 0 ? (delta / prev * 100) : 0;
+      const priceCls = newHigh ? 'tk-price tk-hi' : (aboveTarget ? 'tk-price tk-up' : 'tk-price');
+      const header =
+        `<div class="tk-hd">` +
+          `<div class="tk-sym"><span class="tk-pulse" style="--c:${stroke}"></span>$EFFORT</div>` +
+          `<div class="tk-quote">` +
+            `<span class="${priceCls}">${cur.toFixed(1)}<span class="tk-unit">h</span></span>` +
+            `<span class="tk-chg" style="color:${stroke}">${arrow}&nbsp;${Math.abs(delta).toFixed(1)}&nbsp;·&nbsp;${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%</span>` +
+          `</div>` +
+        `</div>`;
+      return { header, chart };
+    }
+    const tk = buildTrend(sorted);
+
+    // Panel 1 (top, main): the $EFFORT ticker on its own.
+    const tickerEl = document.getElementById('tickerchart');
+    if (tickerEl) tickerEl.innerHTML = `${tk.header}${tk.chart}`;
+
+    // Panel 2: the two maps (effort heatmap + move) together.
+    el.innerHTML =
+      `<div class="cc-lbl">activity map · effective hours/day</div>${workSVG}${workLegend}` +
+      `<div class="cc-lbl" style="margin-top:24px">move · trained that day?</div>${moveSVG}${moveLegend}`;
+  }
+
+  function render(data) {
+    document.getElementById('updated').textContent = 'updated ' + data.last_updated;
+    renderHeatmap(data.days);
+
+    const container = document.getElementById('days');
+    container.innerHTML = '';
+    let lastSection = null;
+    for (const day of data.days) {
+      const thisSection = sectionFor(day.date);
+      if (thisSection !== lastSection) {
+        container.appendChild(makeDivider(thisSection));
+        lastSection = thisSection;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'day';
+      const partial = day.partial ? '<span class="partial">in progress</span>' : '<span></span>';
+
+      const mobRaw = (day.work_hrs != null && day.awake_hrs != null)
+        ? `${fmtHr(day.work_hrs)}/${fmtHr(day.awake_hrs)}h`
+        : '';
+
+      // Fitness pulled straight from the day record (parsed from the calendar)
+      const t = data.fitness_targets || { calories: 2800, protein_g: 180, gym_minutes: 30, sleep_hours: 8 };
+      const calTarget = day.cal_target || t.calories;       // per-day override if set
+      const proTarget = day.protein_target || t.protein_g;
+      const calVal = day.calories    / calTarget;
+      const proVal = day.protein_g   / proTarget;
+      const gymVal = day.gym_minutes / t.gym_minutes;
+      const stars  = day.gym_stars;
+
+      const calRaw = `${day.calories}/${calTarget}`;
+      const proRaw = `${day.protein_g}/${proTarget}g`;
+      const gymRaw = `${day.gym_minutes}/${t.gym_minutes}m`;
+
+      const sleepHrs = day.sleep_hrs != null ? day.sleep_hrs : 0;
+      const sleepTarget = t.sleep_hours || 8;
+      const sleepVal = sleepHrs / sleepTarget;
+      const sleepRaw = `${sleepHrs.toFixed(1)}/${sleepTarget}h`;
+
+      const starsBlock = stars != null
+        ? `<div class="gauge-stars">${starsHTML(stars)}</div>`
+        : '';
+
+      // Fitness detail row (Sleep / Calories / Protein / Gym). Always shown;
+      // gauges just read empty on days with no diet/gym/sleep logged.
+      const showFitness = true;
+      const detailRow = showFitness ? `
+        <div class="gauges detail">
+          <div class="gauge">
+            ${gaugeSVG(sleepVal, sleepRaw)}
+            <div class="gauge-label">Sleep</div>
+          </div>
+          <div class="gauge">
+            ${gaugeSVG(calVal, calRaw)}
+            <div class="gauge-label">Calories</div>
+          </div>
+          <div class="gauge">
+            ${gaugeSVG(proVal, proRaw)}
+            <div class="gauge-label">Protein</div>
+          </div>
+          <div class="gauge">
+            ${gaugeSVG(gymVal, gymRaw)}
+            <div class="gauge-label">Gym Time</div>
+            ${starsBlock}
+          </div>
+        </div>` : '';
+
+      card.innerHTML = `
+        <div class="day-header">
+          <span>${fmtDate(day.date)}</span>
+          ${partial}
+        </div>
+        <div class="gauges">
+          <div class="gauge">
+            ${gaugeSVG(day.mobilization, mobRaw)}
+            <div class="gauge-label">Mobilization</div>
+          </div>
+          <div class="gauge">
+            ${gaugeSVG(day.efficiency, null)}
+            <div class="gauge-label">Efficiency</div>
+          </div>
+        </div>
+        ${detailRow}
+      `;
+      container.appendChild(card);
+    }
+
+    // Animate fills in next frame
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.arc-fill').forEach(el => {
+        el.style.strokeDashoffset = el.dataset.target;
+      });
+    });
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('failed to load ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function loadData() {
+    // Local-only: read the sibling data.js produced by refresh.sh.
+    await loadScript('data.js?t=' + Date.now());
+    if (!window.DASHBOARD_DATA) throw new Error('no local data.js — run refresh.sh');
+    return window.DASHBOARD_DATA;
+  }
+
+  let lastSnapshot = '';
+  async function refreshUI() {
+    try {
+      const data = await loadData();
+      const snap = JSON.stringify(data);
+      if (snap === lastSnapshot) return;
+      lastSnapshot = snap;
+      render(data);
+    } catch (err) {
+      if (!lastSnapshot) {
+        document.getElementById('days').innerHTML =
+          '<p style="color:var(--muted);font-size:13px;">Couldn\'t load data: ' + err.message + '</p>';
+      }
+    }
+  }
+
+  refreshUI();
+  setInterval(refreshUI, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshUI();
+  });
+</script>
+
+</body>
+</html>

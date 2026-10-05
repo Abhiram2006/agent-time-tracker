@@ -1,0 +1,12 @@
+# Generated dashboard data (regenerable via tracker/refresh.sh)
+tracker/data.json
+tracker/data.js
+
+# Compiled EventKit binaries (platform-specific; rebuilt from .swift on demand)
+tracker/calwrite
+tracker/fetch_evidence
+
+# Your real food library (copy foods.example.md → foods.md and grow it; keep private)
+foods.md
+
+.DS_Store
