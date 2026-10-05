@@ -1,6 +1,8 @@
 # Generated dashboard data (regenerable via tracker/refresh.sh)
 tracker/data.json
 tracker/data.js
+tracker/breakdown_data.json
+tracker/breakdown_data.js
 
 # Compiled EventKit binaries (platform-specific; rebuilt from .swift on demand)
 tracker/calwrite

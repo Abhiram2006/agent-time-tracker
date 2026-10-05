@@ -37,9 +37,10 @@ if [ ! -s "$EVENTS_TMP" ]; then
 fi
 
 EVENT_COUNT=$(wc -l < "$EVENTS_TMP" | tr -d ' ')
-echo "Got $EVENT_COUNT events. Building data.json (local only) ..."
+echo "Got $EVENT_COUNT events. Building data.json + breakdown_data.json (local only) ..."
 
 python3 "$SITE_DIR/build_data.py" "$SITE_DIR" < "$EVENTS_TMP"
+python3 "$SITE_DIR/build_breakdown.py" "$SITE_DIR" < "$EVENTS_TMP"
 
 # Local-only: just open index.html in a browser to view.
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Built locally. View: open $SITE_DIR/index.html"

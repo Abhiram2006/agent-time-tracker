@@ -19,8 +19,10 @@ tracker/
   calwrite.swift        EventKit writer (agent creates/updates/deletes events)
   fetch_evidence.swift  EventKit reader (pulls the calendar as TSV)
   build_data.py         parses events → data.json (daily Mob/Eff + fitness)
-  index.html            the dashboard (open in a browser)
-  refresh.sh            fetch → build → done
+  build_breakdown.py    parses events → breakdown_data.json (hour-of-day curves)
+  index.html            the main dashboard (open in a browser)
+  breakdown.html        hour-of-day Mobilization × Efficiency view
+  refresh.sh            fetch → build both → done
 logs/
   _TEMPLATE.md          blank day-log format
   EXAMPLE-2026-01-02.md a filled example day
@@ -56,9 +58,11 @@ foods.example.md  starter food-macro library (copy to foods.md and grow it)
 
 4. **Run it:**
    ```bash
-   bash tracker/refresh.sh      # pulls the calendar, builds data.json
-   open tracker/index.html      # view the dashboard
+   bash tracker/refresh.sh      # pulls the calendar, builds the data
+   open tracker/index.html      # view the dashboard (breakdown.html for hour-of-day)
    ```
+   Before you've logged anything, opening `index.html` just shows an empty shell with a
+   "no data yet" hint — that's the template rendering with nothing in it.
 
 ## Daily use
 
@@ -70,9 +74,11 @@ Everything regenerates from the calendar, so the calendar (iCloud-synced) is you
 backup. The only data that *only* lives in the logs is the human-readable food
 descriptions — the macro numbers are in the calendar tags.
 
-## Not included (lives in the original, left out as personal/era-specific)
+## Not included
 
-- An hour-of-day "breakdown" analysis (per-era smoothed Mobilization × Efficiency).
-- A voice → calendar bridge.
+- A voice → calendar bridge (speak a block, it files it) — lives in the original; cut
+  here to keep the package lean. Easy to add back.
 
-Both are easy to add back; they were cut to keep this package lean and generic.
+The `breakdown.html` page here is simplified to a single all-data view. The original had
+a multi-"era" version (comparing distinct phases/locations); if you want named eras, add
+your own date→label logic in `build_breakdown.py` and the page.

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tracker · breakdown</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#000; --card:#0f0f11; --ink:#f1f1ee; --soft:#8b8b86;
+    --muted:#56564f; --hair:#222225; --accent:#39ff14; --partial:#ffb86c;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--ink); }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+    line-height:1.5; padding:56px 24px 80px; max-width:920px; margin:0 auto;
+  }
+  header { display:flex; justify-content:space-between; align-items:baseline;
+    margin-bottom:24px; padding-bottom:18px; border-bottom:1px solid var(--hair); }
+  header h1 { font-size:16px; font-weight:500; }
+  header h1 a { color:var(--soft); text-decoration:none; }
+  header h1 .crumb { color:var(--soft); font-weight:400; }
+  header .updated { font-size:11px; color:var(--muted); letter-spacing:0.04em; text-transform:uppercase; }
+  .card { background:var(--card); border:1px solid var(--hair); border-radius:12px; padding:22px 24px 24px; }
+  .controls { display:flex; gap:10px; align-items:center; margin-bottom:6px; }
+  .controls .meta { margin-left:auto; font-size:11px; color:var(--muted); letter-spacing:0.04em; }
+  .legend-row { display:flex; gap:20px; font-size:12px; color:var(--soft); margin:12px 0 4px; }
+  .sw { display:inline-block; width:14px; height:3px; vertical-align:middle; margin-right:6px; border-radius:1px; }
+  .chart-wrap { position:relative; height:430px; }
+  footer { margin-top:26px; padding-top:18px; border-top:1px solid var(--hair);
+    font-size:11.5px; color:var(--soft); line-height:1.7; }
+  footer b { color:var(--ink); font-weight:500; }
+  .credit { color:var(--muted); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; margin-top:14px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><a href="index.html">tracker</a> <span class="crumb">/ breakdown</span></h1>
+  <div class="updated" id="updated"></div>
+</header>
+
+<div class="card">
+  <div class="controls">
+    <span class="meta" id="ndays"></span>
+  </div>
+  <div class="legend-row">
+    <span><span class="sw" style="background:#39ff14;"></span>Mobilization &nbsp;<span style="color:var(--muted)">(work / awake)</span></span>
+    <span><span class="sw" style="background:#ffb86c;"></span>Efficiency &nbsp;<span style="color:var(--muted)">(avg ★ / work-hr)</span></span>
+    <span style="margin-left:auto; color:var(--muted)">shaded = ±1 SE</span>
+  </div>
+  <div class="chart-wrap"><canvas id="ch"></canvas></div>
+</div>
+
+<footer>
+  <b>Read the bands, not just the lines.</b> Each curve is a Gaussian-smoothed hour-of-day mean across all your tracked days; the shaded band is ±1 standard error. Where few days have data (early mornings, late nights), the band is <b>wide</b> — the honest signal that the line there is running on little data. Where it's tight, trust it.
+  <div class="credit">agent-maintained tracker</div>
+</footer>
+
+<script>
+let D = null, chart = null;
+
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('load '+src));document.head.appendChild(s);});}
+async function loadData(){
+  await loadScript('breakdown_data.js?t='+Date.now());
+  if(!window.BREAKDOWN_DATA) throw new Error('no breakdown_data.js');
+  return window.BREAKDOWN_DATA;
+}
+
+const labels = Array.from({length:24},(_,h)=>String(h).padStart(2,'0'));
+const ink='#f1f1ee', tick='#8b8b86', grid='#222225';
+
+function build(){
+  if(!D) return;
+  document.getElementById('ndays').textContent = (D.n_days||0) + ' days';
+
+  const allMob=[...(D.mob.lo||[]),...(D.mob.hi||[])].filter(v=>v!=null);
+  const allEff=[...(D.eff.lo||[]),...(D.eff.hi||[])].filter(v=>v!=null);
+  if(!allMob.length && !allEff.length){
+    document.querySelector('.chart-wrap').innerHTML =
+      '<p style="color:var(--muted);padding:24px;line-height:1.6;">No data yet. '
+      + 'Log some starred work blocks, run <code>bash refresh.sh</code>, and reload.</p>';
+    return;
+  }
+  const mobMin=Math.max(0,Math.floor(Math.min(...allMob)/10)*10);
+  const mobMax=Math.min(100,Math.ceil(Math.max(...allMob)/10)*10);
+  const effMin=Math.max(1,Math.floor(Math.min(...allEff)*10)/10);
+  const effMax=Math.min(5,Math.ceil(Math.max(...allEff)*10)/10);
+
+  const ds = [
+    {label:'mob-lo', data:D.mob.lo, yAxisID:'y', borderColor:'transparent', pointRadius:0, fill:false, tension:0.4, order:5},
+    {label:'mob-hi', data:D.mob.hi, yAxisID:'y', borderColor:'transparent', backgroundColor:'rgba(57,255,20,0.13)', pointRadius:0, fill:'-1', tension:0.4, order:5},
+    {label:'eff-lo', data:D.eff.lo, yAxisID:'y1', borderColor:'transparent', pointRadius:0, fill:false, tension:0.4, order:4},
+    {label:'eff-hi', data:D.eff.hi, yAxisID:'y1', borderColor:'transparent', backgroundColor:'rgba(255,184,108,0.12)', pointRadius:0, fill:'-1', tension:0.4, order:4},
+    {label:'Mobilization', data:D.mob.mean, yAxisID:'y', borderColor:'#39ff14', borderWidth:2.5, pointRadius:0, pointHoverRadius:4, tension:0.4, order:1},
+    {label:'Efficiency', data:D.eff.mean, yAxisID:'y1', borderColor:'#ffb86c', borderWidth:2.5, pointRadius:0, pointHoverRadius:4, tension:0.4, order:1},
+  ];
+
+  if(chart) chart.destroy();
+  chart = new Chart(document.getElementById('ch'),{
+    type:'line',
+    data:{labels, datasets:ds},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index', intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#0f0f11', titleColor:ink, bodyColor:ink,
+          borderColor:'#39ff14', borderWidth:1,
+          filter:(item)=>item.dataset.label==='Mobilization'||item.dataset.label==='Efficiency',
+          callbacks:{
+            title:(it)=>`Hour ${it[0].label}:00`,
+            label:(it)=>{
+              const h=it.dataIndex;
+              if(it.dataset.label==='Mobilization'){
+                const lo=D.mob.lo[h], hi=D.mob.hi[h];
+                return `Mob: ${it.parsed.y?.toFixed(0)}%  (±${lo!=null?((hi-lo)/2).toFixed(0):'?'})`;
+              }
+              const lo=D.eff.lo[h], hi=D.eff.hi[h];
+              return `Eff: ${it.parsed.y?.toFixed(2)}★  (±${lo!=null?((hi-lo)/2).toFixed(2):'?'})`;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{title:{display:true,text:'hour of day',color:tick}, grid:{color:grid}, ticks:{color:tick}},
+        y:{title:{display:true,text:'Mobilization %',color:'#39ff14'}, position:'left', min:mobMin, max:mobMax, grid:{color:grid}, ticks:{color:'#39ff14',callback:v=>v+'%'}},
+        y1:{title:{display:true,text:'Efficiency (★)',color:'#ffb86c'}, position:'right', min:effMin, max:effMax, grid:{drawOnChartArea:false}, ticks:{color:'#ffb86c',callback:v=>v.toFixed(1)+'★'}},
+      }
+    }
+  });
+}
+
+(async()=>{
+  try{
+    D = await loadData();
+    document.getElementById('updated').textContent='updated '+(D.last_updated||'');
+    build();
+  }catch(err){
+    document.getElementById('updated').textContent='no data yet';
+    document.querySelector('.chart-wrap').innerHTML =
+      '<p style="color:var(--muted);padding:24px;line-height:1.6;">No data yet. '
+      + 'Log some starred work blocks, run <code>bash refresh.sh</code>, and reload.</p>';
+  }
+})();
+</script>
+</body>
+</html>

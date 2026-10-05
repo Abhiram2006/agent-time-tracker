@@ -249,6 +249,7 @@
 <header>
   <h1>tracker</h1>
   <div style="display:flex;gap:14px;align-items:baseline;">
+    <a href="breakdown.html" style="font-size:11px;color:var(--soft);letter-spacing:0.04em;text-transform:uppercase;text-decoration:none;">breakdown →</a>
     <div class="updated" id="updated"></div>
   </div>
 </header>
@@ -544,6 +545,12 @@
 
     const container = document.getElementById('days');
     container.innerHTML = '';
+    if (!data.days || !data.days.length) {
+      container.innerHTML = '<p style="color:var(--muted);font-size:13px;line-height:1.6;">'
+        + 'No data yet. Point an agent at <code>AGENT.md</code>, log some blocks to your '
+        + 'calendar, then run <code>bash refresh.sh</code> and reload.</p>';
+      return;
+    }
     let lastSection = null;
     for (const day of data.days) {
       const thisSection = sectionFor(day.date);
@@ -644,11 +651,29 @@
     });
   }
 
+  function emptyData() {
+    // Empty-template state: renders the shell before any data exists.
+    return {
+      last_updated: '—', canonical_tz: '',
+      fitness_targets: { calories: 2500, protein_g: 180, gym_minutes: 30, sleep_hours: 8 },
+      summary: {
+        window_days: 7, weighted_7d: 0, weighted_target: 6, raw_7d: 0,
+        sleep_avg: null, sleep_target: 8, protein_avg: null, protein_target: 180,
+        cal_avg: null, cal_target: 2500, days_since_gym: null,
+      },
+      days: [],
+    };
+  }
+
   async function loadData() {
     // Local-only: read the sibling data.js produced by refresh.sh.
-    await loadScript('data.js?t=' + Date.now());
-    if (!window.DASHBOARD_DATA) throw new Error('no local data.js — run refresh.sh');
-    return window.DASHBOARD_DATA;
+    // If it isn't there yet (fresh template), render the empty shell instead of erroring.
+    try {
+      await loadScript('data.js?t=' + Date.now());
+    } catch (e) {
+      return emptyData();
+    }
+    return window.DASHBOARD_DATA || emptyData();
   }
 
   let lastSnapshot = '';

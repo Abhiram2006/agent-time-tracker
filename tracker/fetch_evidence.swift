@@ -1,6 +1,6 @@
 // Fast Evidence. calendar pull via EventKit (replaces the slow Calendar.app
 // AppleScript whose-filter, ~90s → ~0.3s). Prints TSV: start<TAB>end<TAB>summary
-// in SYSTEM-LOCAL time (build_data.py converts local → per-era canonical).
+// in SYSTEM-LOCAL time (build_data.py converts local → canonical timezone).
 //
 // Build:  swiftc -O fetch_evidence.swift -o fetch_evidence
 // (refresh.sh compiles automatically if the binary is missing or stale.)
